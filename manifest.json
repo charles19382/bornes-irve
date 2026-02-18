@@ -5,12 +5,17 @@
     {
       "src": "Image1.png",
       "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "Image1.png",
+      "sizes": "512x512",
       "type": "image/png"
     }
   ],
-  "start_url": ".",
+  "start_url": "./index.html",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#06402B",
   "background_color": "#ffffff"
-
 }
