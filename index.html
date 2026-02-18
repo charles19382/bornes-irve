@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostic IRVE Pro</title>
+    <style>
+        :root {
+            --primary: #00ff88;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --accent: #38bdf8;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h1 { font-size: 1.4rem; text-align: center; color: var(--primary); margin-bottom: 25px; }
+
+        .grid-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+
+        .tile {
+            background: #334155;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            user-select: none;
+        }
+
+        .tile.active { 
+            border-color: var(--primary); 
+            background: rgba(0, 255, 136, 0.1); 
+        }
+
+        .tile span { font-weight: bold; display: block; pointer-events: none; }
+        .tile small { font-size: 0.75rem; color: #cbd5e1; pointer-events: none; }
+
+        .input-group { background: #0f172a; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        
+        select { width: 100%; padding: 10px; border-radius: 5px; background: #334155; color: white; border: none; margin-top: 10px; font-size: 1rem; cursor: pointer; }
+        
+        input[type="range"] { width: 100%; margin: 15px 0; }
+        
+        .val-display { font-size: 2.5rem; font-weight: bold; text-align: center; color: var(--accent); }
+
+        .results { background: #16213e; padding: 20px; border-radius: 12px; }
+        .res-line { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .res-val { color: var(--primary); font-weight: bold; text-align: right; }
+        
+        .info-box { background: rgba(56, 189, 248, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); font-size: 0.85rem; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚡ IRVE EXPERT</h1>
+
+    <div class="grid-select">
+        <div class="tile active" id="btn-erp" onclick="changeType('erp')">
+            <span>🏢 ERP</span><small>Bureaux, Commerces</small>
+        </div>
+        <div class="tile" id="btn-hab" onclick="changeType('habitation')">
+            <span>🏠 Habitation</span><small>Logements & Maisons</small>
+        </div>
+        <div class="tile" id="btn-sta" onclick="changeType('station')">
+            <span>⛽ Stations</span><small>Haute Puissance</small>
+        </div>
+        <div class="tile" id="btn-voi" onclick="changeType('voie')">
+            <span>🛣️ Voie Publique</span><small>SDIRVE / Parkings</small>
+        </div>
+    </div>
+
+    <div id="erp-options" class="input-group">
+        <label>Sous-catégorie ERP / Tertiaire</label>
+        <select id="erp-type" onchange="calculate()">
+            <option value="bureau_neuf">Bâtiment de bureaux (Neuf)</option>
+            <option value="commerce_neuf">Commerce / Supermarché (Neuf)</option>
+            <option value="parking_existant">Parkings existants (Tertiaire)</option>
+        </select>
+    </div>
+
+    <div id="hab-options" class="input-group" style="display: none;">
+        <label>Type de logement</label>
+        <select id="hab-type" onchange="calculate()">
+            <option value="collectif">Logement collectif (Immeuble neuf)</option>
+            <option value="maison">Maison individuelle (Neuf avec parking clos)</option>
+        </select>
+    </div>
+
+    <div id="places-group" class="input-group">
+        <label>Nombre de places de stationnement</label>
+        <div class="val-display" id="val">47</div>
+        <input type="range" id="slots" min="1" max="200" value="47" oninput="calculate()">
+    </div>
+
+    <div class="results">
+        <div class="res-line">
+            <span>Pré-équipement :</span>
+            <span class="res-val" id="res-pre">--</span>
+        </div>
+        <div class="res-line">
+            <span>Installation :</span>
+            <span class="res-val" id="res-inst">--</span>
+        </div>
+        <div id="info" class="info-box">Sélectionnez une option.</div>
+    </div>
+</div>
+
+<script>
+    let currentType = 'erp';
+
+    function changeType(type) {
+        currentType = type;
+
+        // Réinitialisation des boutons
+        document.getElementById('btn-erp').classList.remove('active');
+        document.getElementById('btn-hab').classList.remove('active');
+        document.getElementById('btn-sta').classList.remove('active');
+        document.getElementById('btn-voi').classList.remove('active');
+
+        // Activation du bouton cliqué
+        if(type === 'erp') document.getElementById('btn-erp').classList.add('active');
+        if(type === 'habitation') document.getElementById('btn-hab').classList.add('active');
+        if(type === 'station') document.getElementById('btn-sta').classList.add('active');
+        if(type === 'voie') document.getElementById('btn-voi').classList.add('active');
+
+        calculate();
+    }
+
+    function calculate() {
+        let slots = parseInt(document.getElementById('slots').value);
+        document.getElementById('val').innerText = slots;
+        
+        let habSub = document.getElementById('hab-type').value;
+        let erpSub = document.getElementById('erp-type').value;
+        
+        let pre = "0 place";
+        let inst = "0 borne";
+        let info = "";
+
+        // Gestion de l'affichage dynamique des menus et du curseur
+        document.getElementById('erp-options').style.display = (currentType === 'erp') ? 'block' : 'none';
+        document.getElementById('hab-options').style.display = (currentType === 'habitation') ? 'block' : 'none';
+
+        // Le curseur disparaît pour les stations et les maisons individuelles
+        let showSlider = true;
+        if (currentType === 'station' || (currentType === 'habitation' && habSub === 'maison')) {
+            showSlider = false;
+        }
+        document.getElementById('places-group').style.display = showSlider ? 'block' : 'none';
+
+        // Logique de calcul
+        if (currentType === 'habitation') {
+            if (habSub === 'collectif') {
+                pre = slots + " places (100%)";
+                inst = "À la demande";
+                info = "<b>Logement collectif neuf :</b> Pré-équipement de 100% des places obligatoire. L'installation doit permettre d'alimenter 20% des places à 7,4 kW simultanément.";
+            } else {
+                pre = "Fourreaux obligatoires";
+                inst = "Optionnelle";
+                info = "<b>Maison individuelle (Décret 11 mars 2021) :</b> Pose de fourreaux obligatoire vers l'emplacement de stationnement dans le neuf.<br><br><b>Installation borne :</b> Libre si puissance ≤ 3,7 kW. <b>Obligation de faire appel à un installateur certifié IRVE</b> si puissance > 3,7 kW (Décret 12 janvier 2017) pour la couverture assurance.";
+            }
+        } 
+        else if (currentType === 'erp') {
+            if (erpSub === 'bureau_neuf') {
+                pre = slots > 10 ? Math.ceil(slots * 0.2) + " places (20%)" : "0 place";
+                inst = slots > 10 ? Math.ceil(slots * 0.1) + " bornes (10%)" : "0 borne";
+                info = "<b>Bureaux Neufs (>10 pl) :</b> 20% de précâblage et 10% de bornes réelles installées.";
+            } else if (erpSub === 'commerce_neuf') {
+                pre = slots > 10 ? Math.ceil(slots * 0.2) + " places (20%)" : "0 place";
+                inst = slots > 10 ? "1 borne minimum" : "0 borne";
+                info = "<b>Commerce Neuf (>10 pl) :</b> 20% de précâblage et au moins 1 borne active obligatoire.";
+            } else {
+                pre = "-";
+                inst = slots > 20 ? Math.ceil(slots / 20) + " borne(s)" : "0 borne";
+                info = "<b>Parking Existant (>20 pl) :</b> Obligation Loi LOM (01/01/2025) : 1 point de charge par tranche de 20 places.";
+            }
+        }
+        else if (currentType === 'station') {
+            pre = "Bornes > 150 kW";
+            inst = "Obligatoire";
+            info = "<b>Décret n°2021-1561 :</b> Équipement des aires de service et grandes stations en recharge ultra-rapide pour les longs trajets.";
+        }
+        else if (currentType === 'voie') {
+            pre = "Interopérabilité & PMR";
+            inst = slots > 20 ? Math.ceil(slots / 20) + " borne(s)" : "1 borne min.";
+            info = "<b>Parkings publics (> 20 places) :</b> 1 point de charge par tranche de 20 places (depuis le 01/01/2025).<br><br><b>Continuité :</b> 1 station rapide tous les 60 km sur axes principaux.<br><br><b>Accessibilité :</b> Interopérabilité (accès multi-opérateurs) et emplacements PMR obligatoires.";
+        }
+
+        document.getElementById('res-pre').innerText = pre;
+        document.getElementById('res-inst').innerHTML = inst;
+        document.getElementById('info').innerHTML = info;
+    }
+
+    // Exécution initiale
+    calculate();
+</script>
+
+</body>
+</html>
