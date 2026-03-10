@@ -3,7 +3,7 @@
 <head>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="Image1.png">
-<link rel="icon" type="image/png" href="Image1.png">
+    <link rel="icon" type="image/png" href="Image1.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Diagnostic IRVE Pro</title>
@@ -14,6 +14,8 @@
             --card: #1e293b;
             --text: #f8fafc;
             --accent: #38bdf8;
+            --warning: #facc15;
+            --secondary: #a78bfa;
         }
 
         body {
@@ -28,7 +30,7 @@
 
         .container {
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
             background: var(--card);
             padding: 30px;
             border-radius: 20px;
@@ -65,11 +67,22 @@
         
         .val-display { font-size: 2.5rem; font-weight: bold; text-align: center; color: var(--accent); }
 
-        .results { background: #16213e; padding: 20px; border-radius: 12px; }
+        .results { background: #16213e; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
         .res-line { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .res-val { color: var(--primary); font-weight: bold; text-align: right; }
         
-        .info-box { background: rgba(56, 189, 248, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); font-size: 0.85rem; line-height: 1.4; }
+        .info-box { background: rgba(56, 189, 248, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); font-size: 0.85rem; line-height: 1.4; margin-bottom: 20px; }
+
+        .cost-section { background: #0f172a; padding: 20px; border-radius: 12px; }
+        .cost-section h2 { font-size: 1.1rem; color: var(--warning); margin-top: 0; text-align: center; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .cost-category { margin-top: 20px; }
+        .cost-category h3 { font-size: 0.95rem; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        
+        .cost-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 0.85rem; }
+        .cost-card-title { font-weight: bold; color: var(--accent); margin-bottom: 8px; }
+        .cost-card-title.pre-eq { color: var(--secondary); }
+        .cost-details { display: flex; justify-content: space-between; color: #cbd5e1; margin-bottom: 5px; }
+        .cost-total { display: flex; justify-content: space-between; font-weight: bold; color: var(--primary); border-top: 1px dashed #334155; padding-top: 8px; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -123,23 +136,55 @@
             <span>Installation :</span>
             <span class="res-val" id="res-inst">--</span>
         </div>
-        <div id="info" class="info-box">Sélectionnez une option.</div>
+    </div>
+    
+    <div id="info" class="info-box">Sélectionnez une option.</div>
+
+    <div class="cost-section" id="cost-section">
+        <h2 id="cost-title">Estimation des coûts (HT)</h2>
+        
+        <div class="cost-category">
+            <h3>🏗️ Minimum Légal (Pré-équipement)</h3>
+            <div id="costs-pre"></div>
+        </div>
+
+        <div class="cost-category">
+            <h3>🔌 Charge Standard (AC - 7.4 à 22 kW)</h3>
+            <div id="costs-ac"></div>
+        </div>
+
+        <div class="cost-category">
+            <h3>⚡ Charge Rapide (DC - 50 à 150 kW)</h3>
+            <div id="costs-dc"></div>
+        </div>
     </div>
 </div>
 
 <script>
     let currentType = 'erp';
 
+    const tarifs = {
+        pre: 150, // Coût moyen estimé par place pour le passage de fourreaux et chemins de câbles
+        ac: [
+            { nom: "Économique (ex: Tesla Wall Connector / Intérieur)", mat: 500, mo: 600 },
+            { nom: "Standard (ex: Wallbox Pulsar / Intérieur)", mat: 750, mo: 600 },
+            { nom: "Renforcé (ex: Alfen Eve Double / Extérieur-Voirie)", mat: 2800, mo: 1800 }
+        ],
+        dc: [
+            { nom: "Compact 50 kW (ex: IES Synergy / Urbain)", mat: 22000, mo: 5000 },
+            { nom: "Standard 50 kW (ex: ABB Terra / Autoroute)", mat: 25000, mo: 6000 },
+            { nom: "Ultra-Rapide 150 kW (ex: Kempower / Hub)", mat: 45000, mo: 8000 }
+        ]
+    };
+
     function changeType(type) {
         currentType = type;
 
-        // Réinitialisation des boutons
         document.getElementById('btn-erp').classList.remove('active');
         document.getElementById('btn-hab').classList.remove('active');
         document.getElementById('btn-sta').classList.remove('active');
         document.getElementById('btn-voi').classList.remove('active');
 
-        // Activation du bouton cliqué
         if(type === 'erp') document.getElementById('btn-erp').classList.add('active');
         if(type === 'habitation') document.getElementById('btn-hab').classList.add('active');
         if(type === 'station') document.getElementById('btn-sta').classList.add('active');
@@ -155,65 +200,141 @@
         let habSub = document.getElementById('hab-type').value;
         let erpSub = document.getElementById('erp-type').value;
         
-        let pre = "0 place";
-        let inst = "0 borne";
+        let preText = "0 place";
+        let instText = "0 borne";
         let info = "";
+        
+        let bornesCount = 0;
+        let preCount = 0;
 
-        // Gestion de l'affichage dynamique des menus et du curseur
         document.getElementById('erp-options').style.display = (currentType === 'erp') ? 'block' : 'none';
         document.getElementById('hab-options').style.display = (currentType === 'habitation') ? 'block' : 'none';
 
-        // Le curseur disparaît pour les stations et les maisons individuelles
         let showSlider = true;
         if (currentType === 'station' || (currentType === 'habitation' && habSub === 'maison')) {
             showSlider = false;
         }
         document.getElementById('places-group').style.display = showSlider ? 'block' : 'none';
 
-        // Logique de calcul
         if (currentType === 'habitation') {
             if (habSub === 'collectif') {
-                pre = slots + " places (100%)";
-                inst = "À la demande";
-                info = "<b>Logement collectif neuf :</b> Pré-équipement de 100% des places obligatoire. L'installation doit permettre d'alimenter 20% des places à 7,4 kW simultanément.";
+                preCount = slots;
+                bornesCount = slots;
+                preText = slots + " places (100%)";
+                instText = "A la demande";
+                info = "<b>Logement collectif neuf :</b> Pré-équipement de 100% des places obligatoire. Le chiffrage simule ici l'installation d'une borne pour chaque place sélectionnée.";
             } else {
-                pre = "Fourreaux obligatoires";
-                inst = "Optionnelle";
-                info = "<b>Maison individuelle (Décret 11 mars 2021) :</b> Pose de fourreaux obligatoire vers l'emplacement de stationnement dans le neuf.<br><br><b>Installation borne :</b> Libre si puissance ≤ 3,7 kW. <b>Obligation de faire appel à un installateur certifié IRVE</b> si puissance > 3,7 kW (Décret 12 janvier 2017) pour la couverture assurance.";
+                preCount = 1;
+                bornesCount = 1;
+                preText = "Fourreaux obligatoires";
+                instText = "1 borne (Optionnelle)";
+                info = "<b>Maison individuelle :</b> Pose de fourreaux obligatoire. Installation libre si ≤ 3,7 kW. Obligation d'un installateur certifié IRVE si > 3,7 kW.";
             }
         } 
         else if (currentType === 'erp') {
             if (erpSub === 'bureau_neuf') {
-                pre = slots > 10 ? Math.ceil(slots * 0.2) + " places (20%)" : "0 place";
-                inst = slots > 10 ? Math.ceil(slots * 0.1) + " bornes (10%)" : "0 borne";
+                preCount = slots > 10 ? Math.ceil(slots * 0.2) : 0;
+                bornesCount = slots > 10 ? Math.ceil(slots * 0.1) : 0;
+                preText = preCount > 0 ? preCount + " places (20%)" : "0 place";
+                instText = bornesCount + " bornes (10%)";
                 info = "<b>Bureaux Neufs (>10 pl) :</b> 20% de précâblage et 10% de bornes réelles installées.";
             } else if (erpSub === 'commerce_neuf') {
-                pre = slots > 10 ? Math.ceil(slots * 0.2) + " places (20%)" : "0 place";
-                inst = slots > 10 ? "1 borne minimum" : "0 borne";
+                preCount = slots > 10 ? Math.ceil(slots * 0.2) : 0;
+                bornesCount = slots > 10 ? Math.max(1, Math.ceil(slots * 0.05)) : 0; 
+                preText = preCount > 0 ? preCount + " places (20%)" : "0 place";
+                instText = slots > 10 ? bornesCount + " borne(s) minimum" : "0 borne";
                 info = "<b>Commerce Neuf (>10 pl) :</b> 20% de précâblage et au moins 1 borne active obligatoire.";
             } else {
-                pre = "-";
-                inst = slots > 20 ? Math.ceil(slots / 20) + " borne(s)" : "0 borne";
-                info = "<b>Parking Existant (>20 pl) :</b> Obligation Loi LOM (01/01/2025) : 1 point de charge par tranche de 20 places.";
+                preCount = 0;
+                bornesCount = slots > 20 ? Math.ceil(slots / 20) : 0;
+                preText = "-";
+                instText = bornesCount + " borne(s)";
+                info = "<b>Parking Existant (>20 pl) :</b> Loi LOM : 1 point de charge par tranche de 20 places.";
             }
         }
         else if (currentType === 'station') {
-            pre = "Bornes > 150 kW";
-            inst = "Obligatoire";
-            info = "<b>Décret n°2021-1561 :</b> Équipement des aires de service et grandes stations en recharge ultra-rapide pour les longs trajets.";
+            preCount = 0;
+            bornesCount = 4;
+            preText = "Bornes > 150 kW";
+            instText = "Obligatoire";
+            info = "<b>Station :</b> Équipement en recharge ultra-rapide pour les longs trajets. (Calcul basé sur une station de 4 points de charge).";
         }
         else if (currentType === 'voie') {
-            pre = "Interopérabilité & PMR";
-            inst = slots > 20 ? Math.ceil(slots / 20) + " borne(s)" : "1 borne min.";
-            info = "<b>Parkings publics (> 20 places) :</b> 1 point de charge par tranche de 20 places (depuis le 01/01/2025).<br><br><b>Continuité :</b> 1 station rapide tous les 60 km sur axes principaux.<br><br><b>Accessibilité :</b> Interopérabilité (accès multi-opérateurs) et emplacements PMR obligatoires.";
+            preCount = 0;
+            bornesCount = slots > 20 ? Math.ceil(slots / 20) : 1;
+            preText = "Interopérabilité & PMR";
+            instText = bornesCount + " borne(s) min.";
+            info = "<b>Voie Publique :</b> 1 point de charge par tranche de 20 places. Accessibilité PMR obligatoire.";
         }
 
-        document.getElementById('res-pre').innerText = pre;
-        document.getElementById('res-inst').innerHTML = inst;
+        document.getElementById('res-pre').innerText = preText;
+        document.getElementById('res-inst').innerHTML = instText;
         document.getElementById('info').innerHTML = info;
+
+        updateCosts(bornesCount, preCount);
     }
 
-    // Exécution initiale
+    function updateCosts(qty, preQty) {
+        document.getElementById('cost-title').innerText = `Estimation des coûts pour ${qty} borne(s) (HT)`;
+        
+        const preContainer = document.getElementById('costs-pre');
+        const acContainer = document.getElementById('costs-ac');
+        const dcContainer = document.getElementById('costs-dc');
+        
+        preContainer.innerHTML = '';
+        acContainer.innerHTML = '';
+        dcContainer.innerHTML = '';
+
+        if (preQty > 0) {
+            let totalPre = preQty * tarifs.pre;
+            preContainer.innerHTML = `
+                <div class="cost-card">
+                    <div class="cost-card-title pre-eq">Infrastructure (Chemins de câbles, fourreaux)</div>
+                    <div class="cost-details"><span>Coût moyen estimé par place :</span> <span>${tarifs.pre} €</span></div>
+                    <div class="cost-total"><span>Total Pré-équipement (${preQty} places) :</span> <span>${totalPre.toLocaleString('fr-FR')} €</span></div>
+                </div>
+            `;
+        } else {
+            preContainer.innerHTML = '<p style="color: #cbd5e1; font-size: 0.85rem; padding: 0 10px;">Aucun pré-équipement spécifique requis pour cette configuration ou infrastructure déjà existante.</p>';
+        }
+
+        if (qty === 0) {
+            acContainer.innerHTML = '<p style="color: #cbd5e1; font-size: 0.85rem; padding: 0 10px;">Aucune borne requise.</p>';
+            dcContainer.innerHTML = '<p style="color: #cbd5e1; font-size: 0.85rem; padding: 0 10px;">Aucune borne requise.</p>';
+            return;
+        }
+
+        tarifs.ac.forEach(item => {
+            let matTotal = item.mat * qty;
+            let moTotal = item.mo * qty;
+            let total = matTotal + moTotal;
+            
+            acContainer.innerHTML += `
+                <div class="cost-card">
+                    <div class="cost-card-title">${item.nom}</div>
+                    <div class="cost-details"><span>Matériel :</span> <span>${matTotal.toLocaleString('fr-FR')} €</span></div>
+                    <div class="cost-details"><span>Main d'œuvre :</span> <span>${moTotal.toLocaleString('fr-FR')} €</span></div>
+                    <div class="cost-total"><span>Total Estimé :</span> <span>${total.toLocaleString('fr-FR')} €</span></div>
+                </div>
+            `;
+        });
+
+        tarifs.dc.forEach(item => {
+            let matTotal = item.mat * qty;
+            let moTotal = item.mo * qty;
+            let total = matTotal + moTotal;
+            
+            dcContainer.innerHTML += `
+                <div class="cost-card">
+                    <div class="cost-card-title">${item.nom}</div>
+                    <div class="cost-details"><span>Matériel :</span> <span>${matTotal.toLocaleString('fr-FR')} €</span></div>
+                    <div class="cost-details"><span>Génie Civil & Pose :</span> <span>${moTotal.toLocaleString('fr-FR')} €</span></div>
+                    <div class="cost-total"><span>Total Estimé :</span> <span>${total.toLocaleString('fr-FR')} €</span></div>
+                </div>
+            `;
+        });
+    }
+
     calculate();
 </script>
 <script>
@@ -222,8 +343,4 @@
   }
 </script>
 </body>
-
 </html>
-
-
-
