@@ -49,6 +49,7 @@
             cursor: pointer;
             border: 2px solid transparent;
             user-select: none;
+            transition: all 0.2s;
         }
 
         .tile.active { 
@@ -67,7 +68,62 @@
         
         .val-display { font-size: 2.5rem; font-weight: bold; text-align: center; color: var(--accent); }
 
-        .results { background: #16213e; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .btn-calc {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary);
+            color: var(--bg);
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn-calc:hover { background-color: #00cc6a; }
+
+        /* Styles de la fenêtre modale */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal-content {
+            background: var(--card);
+            padding: 30px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #cbd5e1;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-btn:hover { color: white; }
+
+        .results { background: #16213e; padding: 20px; border-radius: 12px; margin-bottom: 20px; margin-top: 20px; }
         .res-line { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
         .res-val { color: var(--primary); font-weight: bold; text-align: right; }
         
@@ -86,6 +142,7 @@
     </style>
 </head>
 <body>
+
 <div class="container">
     <h1>⚡ IRVE EXPERT</h1>
 
@@ -106,7 +163,7 @@
 
     <div id="erp-options" class="input-group">
         <label>Sous-catégorie ERP / Tertiaire</label>
-        <select id="erp-type" onchange="calculate()">
+        <select id="erp-type">
             <option value="bureau_neuf">Bâtiment de bureaux (Neuf)</option>
             <option value="commerce_neuf">Commerce / Supermarché (Neuf)</option>
             <option value="parking_existant">Parkings existants (Tertiaire)</option>
@@ -115,7 +172,7 @@
 
     <div id="hab-options" class="input-group" style="display: none;">
         <label>Type de logement</label>
-        <select id="hab-type" onchange="calculate()">
+        <select id="hab-type" onchange="toggleSliderVisibility()">
             <option value="collectif">Logement collectif (Immeuble neuf)</option>
             <option value="maison">Maison individuelle (Neuf avec parking clos)</option>
         </select>
@@ -124,38 +181,47 @@
     <div id="places-group" class="input-group">
         <label>Nombre de places de stationnement</label>
         <div class="val-display" id="val">47</div>
-        <input type="range" id="slots" min="1" max="200" value="47" oninput="calculate()">
+        <input type="range" id="slots" min="1" max="200" value="47" oninput="updateSliderValue()">
     </div>
 
-    <div class="results">
-        <div class="res-line">
-            <span>Pré-équipement :</span>
-            <span class="res-val" id="res-pre">--</span>
-        </div>
-        <div class="res-line">
-            <span>Installation :</span>
-            <span class="res-val" id="res-inst">--</span>
-        </div>
-    </div>
-    
-    <div id="info" class="info-box">Sélectionnez une option.</div>
+    <button class="btn-calc" onclick="showResults()">Calculer la simulation</button>
+</div>
 
-    <div class="cost-section" id="cost-section">
-        <h2 id="cost-title">Estimation des coûts (HT)</h2>
+<div id="resultModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h1 style="margin-top: 0;">📊 Résultats du Diagnostic</h1>
         
-        <div class="cost-category">
-            <h3>🏗️ Minimum Légal (Pré-équipement)</h3>
-            <div id="costs-pre"></div>
+        <div class="results">
+            <div class="res-line">
+                <span>Pré-équipement :</span>
+                <span class="res-val" id="res-pre">--</span>
+            </div>
+            <div class="res-line">
+                <span>Installation :</span>
+                <span class="res-val" id="res-inst">--</span>
+            </div>
         </div>
+        
+        <div id="info" class="info-box">Calcul en cours...</div>
 
-        <div class="cost-category">
-            <h3>🔌 Charge Standard (AC - 7.4 à 22 kW)</h3>
-            <div id="costs-ac"></div>
-        </div>
+        <div class="cost-section" id="cost-section">
+            <h2 id="cost-title">Estimation des coûts (HT)</h2>
+            
+            <div class="cost-category">
+                <h3>🏗️ Minimum Légal (Pré-équipement)</h3>
+                <div id="costs-pre"></div>
+            </div>
 
-        <div class="cost-category">
-            <h3>⚡ Charge Rapide (DC - 50 à 150 kW)</h3>
-            <div id="costs-dc"></div>
+            <div class="cost-category">
+                <h3>🔌 Charge Standard (AC - 7.4 à 22 kW)</h3>
+                <div id="costs-ac"></div>
+            </div>
+
+            <div class="cost-category">
+                <h3>⚡ Charge Rapide (DC - 50 à 150 kW)</h3>
+                <div id="costs-dc"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -164,11 +230,11 @@
     let currentType = 'erp';
 
     const tarifs = {
-        pre: 150, // Coût moyen estimé par place pour le passage de fourreaux et chemins de câbles
+        pre: 150,
         ac: [
             { nom: "Économique (ex: Tesla Wall Connector / Intérieur)", mat: 500, mo: 600 },
             { nom: "Standard (ex: Wallbox Pulsar / Intérieur)", mat: 750, mo: 600 },
-            { nom: "Renforcé (ex: Alfen Eve Double / Extérieur-Voirie)", mat: 2800, mo: 1800 }
+            { nom: "Renforcé (ex: Alfen Eve Double / Extérieur)", mat: 2800, mo: 1800 }
         ],
         dc: [
             { nom: "Compact 50 kW (ex: IES Synergy / Urbain)", mat: 22000, mo: 5000 },
@@ -190,13 +256,44 @@
         if(type === 'station') document.getElementById('btn-sta').classList.add('active');
         if(type === 'voie') document.getElementById('btn-voi').classList.add('active');
 
-        calculate();
+        document.getElementById('erp-options').style.display = (currentType === 'erp') ? 'block' : 'none';
+        document.getElementById('hab-options').style.display = (currentType === 'habitation') ? 'block' : 'none';
+        
+        toggleSliderVisibility();
     }
 
-    function calculate() {
+    function toggleSliderVisibility() {
+        let habSub = document.getElementById('hab-type').value;
+        let showSlider = true;
+        if (currentType === 'station' || (currentType === 'habitation' && habSub === 'maison')) {
+            showSlider = false;
+        }
+        document.getElementById('places-group').style.display = showSlider ? 'block' : 'none';
+    }
+
+    function updateSliderValue() {
+        document.getElementById('val').innerText = document.getElementById('slots').value;
+    }
+
+    function showResults() {
+        calculateData();
+        document.getElementById('resultModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('resultModal').style.display = 'none';
+    }
+
+    // Fermer la modale si clic à l'extérieur
+    window.onclick = function(event) {
+        let modal = document.getElementById('resultModal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    function calculateData() {
         let slots = parseInt(document.getElementById('slots').value);
-        document.getElementById('val').innerText = slots;
-        
         let habSub = document.getElementById('hab-type').value;
         let erpSub = document.getElementById('erp-type').value;
         
@@ -207,21 +304,12 @@
         let bornesCount = 0;
         let preCount = 0;
 
-        document.getElementById('erp-options').style.display = (currentType === 'erp') ? 'block' : 'none';
-        document.getElementById('hab-options').style.display = (currentType === 'habitation') ? 'block' : 'none';
-
-        let showSlider = true;
-        if (currentType === 'station' || (currentType === 'habitation' && habSub === 'maison')) {
-            showSlider = false;
-        }
-        document.getElementById('places-group').style.display = showSlider ? 'block' : 'none';
-
         if (currentType === 'habitation') {
             if (habSub === 'collectif') {
                 preCount = slots;
                 bornesCount = slots;
                 preText = slots + " places (100%)";
-                instText = "A la demande";
+                instText = "A la demmande";
                 info = "<b>Logement collectif neuf :</b> Pré-équipement de 100% des places obligatoire. Le chiffrage simule ici l'installation d'une borne pour chaque place sélectionnée.";
             } else {
                 preCount = 1;
@@ -290,12 +378,12 @@
             preContainer.innerHTML = `
                 <div class="cost-card">
                     <div class="cost-card-title pre-eq">Infrastructure (Chemins de câbles, fourreaux)</div>
-                    <div class="cost-details"><span>Coût moyen estimé par place :</span> <span>${tarifs.pre} €</span></div>
-                    <div class="cost-total"><span>Total Pré-équipement (${preQty} places) :</span> <span>${totalPre.toLocaleString('fr-FR')} €</span></div>
+                    <div class="cost-details"><span>Coût unitaire estimé :</span> <span>${tarifs.pre} €</span></div>
+                    <div class="cost-total"><span>Total Pré-équipement (${preQty} pl) :</span> <span>${totalPre.toLocaleString('fr-FR')} €</span></div>
                 </div>
             `;
         } else {
-            preContainer.innerHTML = '<p style="color: #cbd5e1; font-size: 0.85rem; padding: 0 10px;">Aucun pré-équipement spécifique requis pour cette configuration ou infrastructure déjà existante.</p>';
+            preContainer.innerHTML = '<p style="color: #cbd5e1; font-size: 0.85rem; padding: 0 10px;">Aucun pré-équipement spécifique requis ou infrastructure existante.</p>';
         }
 
         if (qty === 0) {
@@ -308,34 +396,32 @@
             let matTotal = item.mat * qty;
             let moTotal = item.mo * qty;
             let total = matTotal + moTotal;
-            
             acContainer.innerHTML += `
                 <div class="cost-card">
                     <div class="cost-card-title">${item.nom}</div>
                     <div class="cost-details"><span>Matériel :</span> <span>${matTotal.toLocaleString('fr-FR')} €</span></div>
                     <div class="cost-details"><span>Main d'œuvre :</span> <span>${moTotal.toLocaleString('fr-FR')} €</span></div>
                     <div class="cost-total"><span>Total Estimé :</span> <span>${total.toLocaleString('fr-FR')} €</span></div>
-                </div>
-            `;
+                </div>`;
         });
 
         tarifs.dc.forEach(item => {
             let matTotal = item.mat * qty;
             let moTotal = item.mo * qty;
             let total = matTotal + moTotal;
-            
             dcContainer.innerHTML += `
                 <div class="cost-card">
                     <div class="cost-card-title">${item.nom}</div>
                     <div class="cost-details"><span>Matériel :</span> <span>${matTotal.toLocaleString('fr-FR')} €</span></div>
                     <div class="cost-details"><span>Génie Civil & Pose :</span> <span>${moTotal.toLocaleString('fr-FR')} €</span></div>
                     <div class="cost-total"><span>Total Estimé :</span> <span>${total.toLocaleString('fr-FR')} €</span></div>
-                </div>
-            `;
+                </div>`;
         });
     }
 
-    calculate();
+    // Initialisation du slider uniquement à l'ouverture
+    updateSliderValue();
+    toggleSliderVisibility();
 </script>
 <script>
   if ('serviceWorker' in navigator) {
